@@ -1,0 +1,37 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+.coverage
+htmlcov/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Local captures and experiments
+captures/
+recordings/
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
