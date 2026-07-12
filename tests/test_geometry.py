@@ -14,7 +14,7 @@ def test_mouth_detection_computes_center_openness_and_offset() -> None:
     assert detection.center == Point(320, 240)
     assert detection.openness_ratio == 0.25
     assert detection.aim_offset == (0.0, 0.0)
-    assert detection.is_wide_open
+    assert not detection.is_wide_open
 
 
 def test_mouth_detection_treats_small_opening_as_closed() -> None:

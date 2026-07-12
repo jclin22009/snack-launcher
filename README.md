@@ -32,8 +32,8 @@ Useful options:
 - `--no-mirror` disables the default selfie-style mirror.
 - `--max-frames 30` exits after a fixed number of frames for smoke testing.
 - `--model /path/to/face_landmarker.task` uses an explicit model file.
-- `--mouth-wide-open-ratio 0.2` requires a larger opening before the mouth is
-  considered wide open (default: `0.15`).
+- `--mouth-wide-open-ratio 0.7` requires a larger opening before the mouth is
+  considered wide open (default: `0.6`).
 
 Each detection includes:
 

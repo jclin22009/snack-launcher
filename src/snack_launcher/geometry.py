@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from math import hypot
 
 
-DEFAULT_MOUTH_WIDE_OPEN_RATIO = 0.15
+DEFAULT_MOUTH_WIDE_OPEN_RATIO = 0.6
 
 
 @dataclass(frozen=True)
