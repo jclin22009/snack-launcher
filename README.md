@@ -1,11 +1,7 @@
 # Snack Launcher
 
-Webcam mouth detector prototype for a desk robot that eventually aims a snack
-launcher after the phrase "snack me up".
-
-This package does not fire anything yet. The current prototype only estimates a
-mouth target from a webcam frame using MediaPipe Face Mesh and emits aiming data
-that a hardware controller can consume later.
+Webcam mouth detector prototype for a desk robot that aims a snack
+launcher.
 
 ## Setup
 
@@ -36,13 +32,15 @@ Useful options:
 - `--no-mirror` disables the default selfie-style mirror.
 - `--max-frames 30` exits after a fixed number of frames for smoke testing.
 - `--model /path/to/face_landmarker.task` uses an explicit model file.
+- `--mouth-wide-open-ratio 0.2` requires a larger opening before the mouth is
+  considered wide open (default: `0.15`).
 
 Each detection includes:
 
 - mouth center in pixels
 - mouth openness ratio
 - normalized `aim_offset` from the center of the frame
-- `mouth_open`, using a simple initial threshold
+- `mouth_wide_open`, using the configured wide-open ratio threshold
 
 ## Safety notes
 

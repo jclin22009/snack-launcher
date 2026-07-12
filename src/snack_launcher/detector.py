@@ -9,7 +9,12 @@ from typing import Any
 
 import numpy as np
 
-from .geometry import MouthDetection, Point, mouth_detection_from_points
+from .geometry import (
+    DEFAULT_MOUTH_WIDE_OPEN_RATIO,
+    MouthDetection,
+    Point,
+    mouth_detection_from_points,
+)
 
 
 LEFT_MOUTH_CORNER = 61
@@ -30,7 +35,11 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
         *,
         min_detection_confidence: float = 0.65,
         model_path: str | Path | None = None,
+        wide_open_threshold: float = DEFAULT_MOUTH_WIDE_OPEN_RATIO,
     ) -> None:
+        if wide_open_threshold <= 0:
+            raise ValueError("wide_open_threshold must be greater than zero")
+
         try:
             import mediapipe as mp
         except ImportError as exc:
@@ -49,6 +58,7 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
         )
         self._landmarker = mp.tasks.vision.FaceLandmarker.create_from_options(options)
         self._timestamp_ms = 0
+        self._wide_open_threshold = wide_open_threshold
 
     def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
         self.close()
@@ -88,6 +98,7 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
             ),
             frame_width=frame_width,
             frame_height=frame_height,
+            wide_open_threshold=self._wide_open_threshold,
         )
 
 
@@ -118,6 +129,7 @@ def iter_camera_detections(
     mirror: bool = True,
     max_frames: int | None = None,
     model_path: str | Path | None = None,
+    wide_open_threshold: float = DEFAULT_MOUTH_WIDE_OPEN_RATIO,
 ) -> Iterator[tuple[np.ndarray, MouthDetection | None]]:
     import cv2
 
@@ -126,7 +138,10 @@ def iter_camera_detections(
         raise RuntimeError(f"Could not open camera index {camera_index}.")
 
     try:
-        with MouthDetector(model_path=model_path) as detector:
+        with MouthDetector(
+            model_path=model_path,
+            wide_open_threshold=wide_open_threshold,
+        ) as detector:
             frame_count = 0
             while True:
                 ok, frame = capture.read()
@@ -155,7 +170,7 @@ def detection_to_payload(detection: MouthDetection | None) -> dict[str, object]:
         {
             "detected": True,
             "aim_offset": {"x": offset_x, "y": offset_y},
-            "mouth_open": detection.is_open,
+            "mouth_wide_open": detection.is_wide_open,
         }
     )
     return payload

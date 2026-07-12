@@ -5,7 +5,7 @@ import json
 from typing import Sequence
 
 from .detector import detection_to_payload, iter_camera_detections
-from .geometry import MouthDetection
+from .geometry import DEFAULT_MOUTH_WIDE_OPEN_RATIO, MouthDetection
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,7 +39,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to a MediaPipe face_landmarker.task model bundle.",
     )
+    parser.add_argument(
+        "--mouth-wide-open-ratio",
+        type=_positive_ratio,
+        default=DEFAULT_MOUTH_WIDE_OPEN_RATIO,
+        help=(
+            "Mouth openness ratio required for mouth_wide_open "
+            f"(default: {DEFAULT_MOUTH_WIDE_OPEN_RATIO})."
+        ),
+    )
     return parser
+
+
+def _positive_ratio(value: str) -> float:
+    ratio = float(value)
+    if ratio <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return ratio
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -53,6 +69,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         mirror=not args.no_mirror,
         max_frames=args.max_frames,
         model_path=args.model,
+        wide_open_threshold=args.mouth_wide_open_ratio,
     ):
         if args.json:
             print(json.dumps(detection_to_payload(detection)), flush=True)
@@ -91,7 +108,7 @@ def _draw_overlay(frame: object, detection: MouthDetection | None) -> None:
     right = (round(detection.right_corner.x), round(detection.right_corner.y))
     upper = (round(detection.upper_lip.x), round(detection.upper_lip.y))
     lower = (round(detection.lower_lip.x), round(detection.lower_lip.y))
-    status = "OPEN" if detection.is_open else "closed"
+    status = "WIDE OPEN" if detection.is_wide_open else "not wide open"
     offset_x, offset_y = detection.aim_offset
 
     cv2.line(frame, left, right, (255, 180, 0), 2)
@@ -100,7 +117,10 @@ def _draw_overlay(frame: object, detection: MouthDetection | None) -> None:
     cv2.drawMarker(frame, center, (0, 255, 0), cv2.MARKER_CROSS, 28, 2)
     cv2.putText(
         frame,
-        f"mouth {status} ratio={detection.openness_ratio:.2f}",
+        (
+            f"mouth {status} ratio={detection.openness_ratio:.2f} "
+            f"threshold={detection.wide_open_threshold:.2f}"
+        ),
         (20, 40),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.75,
