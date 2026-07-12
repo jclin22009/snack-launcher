@@ -5,7 +5,15 @@ import json
 from typing import Sequence
 
 from .detector import detection_to_payload, iter_camera_detections
-from .geometry import DEFAULT_MOUTH_WIDE_OPEN_RATIO, MouthDetection
+from .geometry import (
+    CAMERA_PRESET_HORIZONTAL_FOV_DEG,
+    DEFAULT_ASSUMED_IPD_MM,
+    DEFAULT_CAMERA_HORIZONTAL_FOV_DEG,
+    DEFAULT_CAMERA_PRESET,
+    DEFAULT_MOUTH_WIDE_OPEN_RATIO,
+    MouthDetection,
+    camera_preset_horizontal_fov_deg,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,25 +49,64 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mouth-wide-open-ratio",
-        type=_positive_ratio,
+        type=_positive_value,
         default=DEFAULT_MOUTH_WIDE_OPEN_RATIO,
         help=(
             "Mouth openness ratio required for mouth_wide_open "
             f"(default: {DEFAULT_MOUTH_WIDE_OPEN_RATIO})."
         ),
     )
+    parser.add_argument(
+        "--assumed-ipd-mm",
+        type=_positive_value,
+        default=DEFAULT_ASSUMED_IPD_MM,
+        help=(
+            "Assumed interpupillary distance used for the distance estimate "
+            f"in millimeters (default: {DEFAULT_ASSUMED_IPD_MM})."
+        ),
+    )
+    parser.add_argument(
+        "--camera-preset",
+        choices=tuple(CAMERA_PRESET_HORIZONTAL_FOV_DEG),
+        default=DEFAULT_CAMERA_PRESET,
+        help=(
+            "Camera calibration preset used for distance estimation "
+            f"(default: {DEFAULT_CAMERA_PRESET})."
+        ),
+    )
+    parser.add_argument(
+        "--camera-horizontal-fov-deg",
+        type=_horizontal_fov,
+        default=None,
+        help=(
+            "Override the selected preset's horizontal field of view for the "
+            "distance estimate, in degrees."
+        ),
+    )
     return parser
 
 
-def _positive_ratio(value: str) -> float:
-    ratio = float(value)
-    if ratio <= 0:
+def _positive_value(value: str) -> float:
+    number = float(value)
+    if number <= 0:
         raise argparse.ArgumentTypeError("must be greater than zero")
-    return ratio
+    return number
+
+
+def _horizontal_fov(value: str) -> float:
+    field_of_view = _positive_value(value)
+    if field_of_view >= 180:
+        raise argparse.ArgumentTypeError("must be less than 180 degrees")
+    return field_of_view
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    camera_horizontal_fov_deg = (
+        args.camera_horizontal_fov_deg
+        if args.camera_horizontal_fov_deg is not None
+        else camera_preset_horizontal_fov_deg(args.camera_preset)
+    )
 
     if not args.no_window:
         import cv2
@@ -70,6 +117,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_frames=args.max_frames,
         model_path=args.model,
         wide_open_threshold=args.mouth_wide_open_ratio,
+        assumed_ipd_mm=args.assumed_ipd_mm,
+        camera_horizontal_fov_deg=camera_horizontal_fov_deg,
     ):
         if args.json:
             print(json.dumps(detection_to_payload(detection)), flush=True)
@@ -124,6 +173,20 @@ def _draw_overlay(frame: object, detection: MouthDetection | None) -> None:
         (20, 40),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.75,
+        (0, 255, 0),
+        2,
+    )
+    distance_text = (
+        f"distance estimate={detection.distance_estimate_m:.2f} m"
+        if detection.distance_estimate_m is not None
+        else "distance estimate unavailable"
+    )
+    cv2.putText(
+        frame,
+        distance_text,
+        (20, 112),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
         (0, 255, 0),
         2,
     )

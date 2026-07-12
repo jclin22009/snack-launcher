@@ -34,6 +34,12 @@ Useful options:
 - `--model /path/to/face_landmarker.task` uses an explicit model file.
 - `--mouth-wide-open-ratio 0.7` requires a larger opening before the mouth is
   considered wide open (default: `0.6`).
+- `--assumed-ipd-mm 63` sets the adult interpupillary-distance assumption used
+  for distance estimation.
+- `--camera-preset macbook-pro-13-2022` selects the current default webcam
+  calibration. It approximates the 720p FaceTime HD camera as a 60° horizontal
+  field of view (about 1,109 px focal length at 1280-pixel width).
+- `--camera-horizontal-fov-deg 70` overrides a preset for another webcam.
 
 Each detection includes:
 
@@ -41,6 +47,12 @@ Each detection includes:
 - mouth openness ratio
 - normalized `aim_offset` from the center of the frame
 - `mouth_wide_open`, using the configured wide-open ratio threshold
+- `distance_estimate_m`, a coarse single-camera estimate of camera distance
+
+`distance_estimate_m` is based on an assumed adult interpupillary distance and
+the camera's configured field of view. It is affected by individual anatomy,
+head rotation, lens distortion, and field-of-view accuracy; do not use it as a
+precision or safety measurement.
 
 ## Safety notes
 

@@ -18,4 +18,5 @@ def test_payload_reports_wide_open_using_configured_threshold() -> None:
     assert payload["openness_ratio"] == 0.2
     assert payload["wide_open_threshold"] == 0.25
     assert payload["mouth_wide_open"] is False
+    assert payload["distance_estimate_m"] is None
     assert "mouth_open" not in payload

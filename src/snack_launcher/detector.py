@@ -10,6 +10,8 @@ from typing import Any
 import numpy as np
 
 from .geometry import (
+    DEFAULT_ASSUMED_IPD_MM,
+    DEFAULT_CAMERA_HORIZONTAL_FOV_DEG,
     DEFAULT_MOUTH_WIDE_OPEN_RATIO,
     MouthDetection,
     Point,
@@ -21,6 +23,8 @@ LEFT_MOUTH_CORNER = 61
 RIGHT_MOUTH_CORNER = 291
 UPPER_INNER_LIP = 13
 LOWER_INNER_LIP = 14
+LEFT_PUPIL = 468
+RIGHT_PUPIL = 473
 DEFAULT_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
     "face_landmarker/float16/latest/face_landmarker.task"
@@ -36,9 +40,15 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
         min_detection_confidence: float = 0.65,
         model_path: str | Path | None = None,
         wide_open_threshold: float = DEFAULT_MOUTH_WIDE_OPEN_RATIO,
+        assumed_ipd_mm: float = DEFAULT_ASSUMED_IPD_MM,
+        camera_horizontal_fov_deg: float = DEFAULT_CAMERA_HORIZONTAL_FOV_DEG,
     ) -> None:
         if wide_open_threshold <= 0:
             raise ValueError("wide_open_threshold must be greater than zero")
+        if assumed_ipd_mm <= 0:
+            raise ValueError("assumed_ipd_mm must be greater than zero")
+        if not 0 < camera_horizontal_fov_deg < 180:
+            raise ValueError("camera_horizontal_fov_deg must be between 0 and 180")
 
         try:
             import mediapipe as mp
@@ -59,6 +69,8 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
         self._landmarker = mp.tasks.vision.FaceLandmarker.create_from_options(options)
         self._timestamp_ms = 0
         self._wide_open_threshold = wide_open_threshold
+        self._assumed_ipd_mm = assumed_ipd_mm
+        self._camera_horizontal_fov_deg = camera_horizontal_fov_deg
 
     def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
         self.close()
@@ -99,11 +111,28 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
             frame_width=frame_width,
             frame_height=frame_height,
             wide_open_threshold=self._wide_open_threshold,
+            # Iris-center landmarks are present in Face Landmarker models with iris output.
+            left_pupil=_landmark_to_point_or_none(
+                landmarks, LEFT_PUPIL, frame_width, frame_height
+            ),
+            right_pupil=_landmark_to_point_or_none(
+                landmarks, RIGHT_PUPIL, frame_width, frame_height
+            ),
+            assumed_ipd_mm=self._assumed_ipd_mm,
+            camera_horizontal_fov_deg=self._camera_horizontal_fov_deg,
         )
 
 
 def _landmark_to_point(landmark: Any, frame_width: int, frame_height: int) -> Point:
     return Point(landmark.x * frame_width, landmark.y * frame_height)
+
+
+def _landmark_to_point_or_none(
+    landmarks: list[Any], index: int, frame_width: int, frame_height: int
+) -> Point | None:
+    if index >= len(landmarks):
+        return None
+    return _landmark_to_point(landmarks[index], frame_width, frame_height)
 
 
 def default_model_path() -> Path:
@@ -130,6 +159,8 @@ def iter_camera_detections(
     max_frames: int | None = None,
     model_path: str | Path | None = None,
     wide_open_threshold: float = DEFAULT_MOUTH_WIDE_OPEN_RATIO,
+    assumed_ipd_mm: float = DEFAULT_ASSUMED_IPD_MM,
+    camera_horizontal_fov_deg: float = DEFAULT_CAMERA_HORIZONTAL_FOV_DEG,
 ) -> Iterator[tuple[np.ndarray, MouthDetection | None]]:
     import cv2
 
@@ -141,6 +172,8 @@ def iter_camera_detections(
         with MouthDetector(
             model_path=model_path,
             wide_open_threshold=wide_open_threshold,
+            assumed_ipd_mm=assumed_ipd_mm,
+            camera_horizontal_fov_deg=camera_horizontal_fov_deg,
         ) as detector:
             frame_count = 0
             while True:
