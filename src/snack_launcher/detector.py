@@ -20,8 +20,8 @@ from .geometry import (
 
 LEFT_MOUTH_CORNER = 48
 RIGHT_MOUTH_CORNER = 54
-UPPER_INNER_LIP = 62
-LOWER_INNER_LIP = 66
+UPPER_OUTER_LIP = (50, 51, 52)
+LOWER_OUTER_LIP = (56, 57, 58)
 RIGHT_EYE = (36, 37, 38, 39, 40, 41)
 LEFT_EYE = (42, 43, 44, 45, 46, 47)
 DEFAULT_MODEL_URL = (
@@ -105,19 +105,44 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
         points = np.asarray(landmarks[0], dtype=float).reshape(-1, 2)
         if len(points) != 68:
             return None
-        return mouth_detection_from_points(
-            left_corner=_point_from_xy(points[LEFT_MOUTH_CORNER]),
-            right_corner=_point_from_xy(points[RIGHT_MOUTH_CORNER]),
-            upper_lip=_point_from_xy(points[UPPER_INNER_LIP]),
-            lower_lip=_point_from_xy(points[LOWER_INNER_LIP]),
+        return _detection_from_landmarks(
+            points,
             frame_width=frame_width,
             frame_height=frame_height,
             wide_open_threshold=self._wide_open_threshold,
-            left_pupil=_mean_point(points, LEFT_EYE),
-            right_pupil=_mean_point(points, RIGHT_EYE),
             assumed_ipd_mm=self._assumed_ipd_mm,
             camera_horizontal_fov_deg=self._camera_horizontal_fov_deg,
         )
+
+
+def _detection_from_landmarks(
+    points: np.ndarray,
+    *,
+    frame_width: int,
+    frame_height: int,
+    wide_open_threshold: float,
+    assumed_ipd_mm: float,
+    camera_horizontal_fov_deg: float,
+) -> MouthDetection:
+    """Convert OpenCV's 68 landmarks into the public detection shape.
+
+    LBF's inner-lip landmarks collapse toward the teeth on very open mouths.
+    Averaging the central outer-lip landmarks tracks the full opening more
+    reliably and reduces single-point jitter.
+    """
+    return mouth_detection_from_points(
+        left_corner=_point_from_xy(points[LEFT_MOUTH_CORNER]),
+        right_corner=_point_from_xy(points[RIGHT_MOUTH_CORNER]),
+        upper_lip=_mean_point(points, UPPER_OUTER_LIP),
+        lower_lip=_mean_point(points, LOWER_OUTER_LIP),
+        frame_width=frame_width,
+        frame_height=frame_height,
+        wide_open_threshold=wide_open_threshold,
+        left_pupil=_mean_point(points, LEFT_EYE),
+        right_pupil=_mean_point(points, RIGHT_EYE),
+        assumed_ipd_mm=assumed_ipd_mm,
+        camera_horizontal_fov_deg=camera_horizontal_fov_deg,
+    )
 
 
 def _point_from_xy(point: np.ndarray) -> Point:

@@ -54,6 +54,10 @@ center positions (a pupil-position proxy), and the camera's configured field of
 view. It is affected by individual anatomy, head rotation, lens distortion, and
 field-of-view accuracy; do not use it as a precision or safety measurement.
 
+The OpenCV detector measures mouth height between averaged outer-lip landmarks.
+This avoids the LBF model's inner-lip points collapsing toward the teeth on a
+very wide-open mouth.
+
 ## Safety notes
 
 Treat this like a robotics project, not a toy. Use soft, low-mass projectiles,
