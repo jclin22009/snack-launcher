@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default=None,
-        help="Path to an OpenCV LBF face-landmark model file.",
+        help="Path to a MediaPipe face_landmarker.task model bundle.",
     )
     parser.add_argument(
         "--mouth-wide-open-ratio",

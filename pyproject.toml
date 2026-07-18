@@ -6,10 +6,11 @@ readme = "README.md"
 authors = [
     { name = "Jason Lin", email = "jclin2.2009@gmail.com" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 dependencies = [
-    "numpy>=2.2.6",
-    "opencv-contrib-python>=4.13.0.92",
+    "mediapipe==0.10.18",
+    "numpy<2",
+    "opencv-contrib-python==4.10.0.84",
 ]
 
 [project.scripts]
