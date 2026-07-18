@@ -5,7 +5,6 @@ from contextlib import AbstractContextManager
 from dataclasses import asdict
 from pathlib import Path
 from urllib.request import urlretrieve
-from typing import Any
 
 import numpy as np
 
@@ -19,25 +18,28 @@ from .geometry import (
 )
 
 
-LEFT_MOUTH_CORNER = 61
-RIGHT_MOUTH_CORNER = 291
-UPPER_INNER_LIP = 13
-LOWER_INNER_LIP = 14
-LEFT_PUPIL = 468
-RIGHT_PUPIL = 473
+LEFT_MOUTH_CORNER = 48
+RIGHT_MOUTH_CORNER = 54
+UPPER_INNER_LIP = 62
+LOWER_INNER_LIP = 66
+RIGHT_EYE = (36, 37, 38, 39, 40, 41)
+LEFT_EYE = (42, 43, 44, 45, 46, 47)
 DEFAULT_MODEL_URL = (
-    "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
-    "face_landmarker/float16/latest/face_landmarker.task"
+    "https://raw.githubusercontent.com/kurnianggoro/GSOC2017/master/data/"
+    "lbfmodel.yaml"
 )
 
 
 class MouthDetector(AbstractContextManager["MouthDetector"]):
-    """MediaPipe Face Mesh wrapper that extracts a mouth target from frames."""
+    """OpenCV 68-point face-landmark wrapper that extracts a mouth target.
+
+    Eye centers are used as a pupil-position proxy for the coarse distance
+    estimate. They are not direct iris/pupil measurements.
+    """
 
     def __init__(
         self,
         *,
-        min_detection_confidence: float = 0.65,
         model_path: str | Path | None = None,
         wide_open_threshold: float = DEFAULT_MOUTH_WIDE_OPEN_RATIO,
         assumed_ipd_mm: float = DEFAULT_ASSUMED_IPD_MM,
@@ -51,23 +53,24 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
             raise ValueError("camera_horizontal_fov_deg must be between 0 and 180")
 
         try:
-            import mediapipe as mp
+            import cv2
         except ImportError as exc:
             raise RuntimeError(
-                "mediapipe is required for mouth detection. Install with `uv sync`."
+                "opencv-contrib-python is required for mouth detection. Install with `uv sync`."
             ) from exc
+        if not hasattr(cv2, "face"):
+            raise RuntimeError(
+                "opencv-contrib-python is required; the installed OpenCV lacks cv2.face."
+            )
 
         model_file = ensure_model(model_path)
-        options = mp.tasks.vision.FaceLandmarkerOptions(
-            base_options=mp.tasks.BaseOptions(model_asset_path=str(model_file)),
-            running_mode=mp.tasks.vision.RunningMode.VIDEO,
-            num_faces=1,
-            min_face_detection_confidence=min_detection_confidence,
-            min_face_presence_confidence=0.5,
-            min_tracking_confidence=0.5,
+        self._facemark = cv2.face.createFacemarkLBF()
+        self._facemark.loadModel(str(model_file))
+        self._face_detector = cv2.CascadeClassifier(
+            str(Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml")
         )
-        self._landmarker = mp.tasks.vision.FaceLandmarker.create_from_options(options)
-        self._timestamp_ms = 0
+        if self._face_detector.empty():
+            raise RuntimeError("OpenCV's bundled frontal-face detector could not be loaded.")
         self._wide_open_threshold = wide_open_threshold
         self._assumed_ipd_mm = assumed_ipd_mm
         self._camera_horizontal_fov_deg = camera_horizontal_fov_deg
@@ -76,67 +79,57 @@ class MouthDetector(AbstractContextManager["MouthDetector"]):
         self.close()
 
     def close(self) -> None:
-        self._landmarker.close()
+        return None
 
     def detect(self, frame_bgr: np.ndarray) -> MouthDetection | None:
         import cv2
-        import mediapipe as mp
 
         frame_height, frame_width = frame_bgr.shape[:2]
-        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(
-            image_format=mp.ImageFormat.SRGB,
-            data=np.ascontiguousarray(frame_rgb),
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        faces = self._face_detector.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(80, 80),
         )
-        result = self._landmarker.detect_for_video(mp_image, self._timestamp_ms)
-        self._timestamp_ms += 33
-
-        if not result.face_landmarks:
+        if len(faces) == 0:
             return None
 
-        landmarks = result.face_landmarks[0]
+        largest_face = max(faces, key=lambda face: int(face[2]) * int(face[3]))
+        fitted, landmarks = self._facemark.fit(
+            frame_bgr, np.asarray([largest_face], dtype=np.int32)
+        )
+        if not fitted or len(landmarks) == 0:
+            return None
+
+        points = np.asarray(landmarks[0], dtype=float).reshape(-1, 2)
+        if len(points) != 68:
+            return None
         return mouth_detection_from_points(
-            left_corner=_landmark_to_point(
-                landmarks[LEFT_MOUTH_CORNER], frame_width, frame_height
-            ),
-            right_corner=_landmark_to_point(
-                landmarks[RIGHT_MOUTH_CORNER], frame_width, frame_height
-            ),
-            upper_lip=_landmark_to_point(
-                landmarks[UPPER_INNER_LIP], frame_width, frame_height
-            ),
-            lower_lip=_landmark_to_point(
-                landmarks[LOWER_INNER_LIP], frame_width, frame_height
-            ),
+            left_corner=_point_from_xy(points[LEFT_MOUTH_CORNER]),
+            right_corner=_point_from_xy(points[RIGHT_MOUTH_CORNER]),
+            upper_lip=_point_from_xy(points[UPPER_INNER_LIP]),
+            lower_lip=_point_from_xy(points[LOWER_INNER_LIP]),
             frame_width=frame_width,
             frame_height=frame_height,
             wide_open_threshold=self._wide_open_threshold,
-            # Iris-center landmarks are present in Face Landmarker models with iris output.
-            left_pupil=_landmark_to_point_or_none(
-                landmarks, LEFT_PUPIL, frame_width, frame_height
-            ),
-            right_pupil=_landmark_to_point_or_none(
-                landmarks, RIGHT_PUPIL, frame_width, frame_height
-            ),
+            left_pupil=_mean_point(points, LEFT_EYE),
+            right_pupil=_mean_point(points, RIGHT_EYE),
             assumed_ipd_mm=self._assumed_ipd_mm,
             camera_horizontal_fov_deg=self._camera_horizontal_fov_deg,
         )
 
 
-def _landmark_to_point(landmark: Any, frame_width: int, frame_height: int) -> Point:
-    return Point(landmark.x * frame_width, landmark.y * frame_height)
+def _point_from_xy(point: np.ndarray) -> Point:
+    return Point(float(point[0]), float(point[1]))
 
 
-def _landmark_to_point_or_none(
-    landmarks: list[Any], index: int, frame_width: int, frame_height: int
-) -> Point | None:
-    if index >= len(landmarks):
-        return None
-    return _landmark_to_point(landmarks[index], frame_width, frame_height)
+def _mean_point(points: np.ndarray, indices: tuple[int, ...]) -> Point:
+    return _point_from_xy(points[list(indices)].mean(axis=0))
 
 
 def default_model_path() -> Path:
-    return Path.home() / ".cache" / "snack-launcher" / "face_landmarker.task"
+    return Path.home() / ".cache" / "snack-launcher" / "lbfmodel.yaml"
 
 
 def ensure_model(model_path: str | Path | None = None) -> Path:
@@ -145,7 +138,7 @@ def ensure_model(model_path: str | Path | None = None) -> Path:
         return path
 
     if model_path is not None:
-        raise FileNotFoundError(f"Face landmarker model not found: {path}")
+        raise FileNotFoundError(f"Face landmark model not found: {path}")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     urlretrieve(DEFAULT_MODEL_URL, path)
