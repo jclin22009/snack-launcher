@@ -1,11 +1,11 @@
 from snack_launcher.launcher import (
     SINGLE_SHOT_DURATION_S,
     SINGLE_SHOT_THROTTLE,
+    home_gimbal,
     single_shot,
-    set_vert_angle,
-    zero_all_servos,
-    zero_horz_servo,
-    zero_vert_servo,
+    set_tilt_angle,
+    zero_pan_servo,
+    zero_tilt_servo,
 )
 
 
@@ -42,50 +42,50 @@ def test_single_shot_uses_calibrated_channel_zero_settings() -> None:
     assert SINGLE_SHOT_THROTTLE == -0.35
 
 
-def test_zero_vert_servo_moves_channel_one_to_zero_degrees() -> None:
+def test_zero_tilt_servo_moves_channel_one_to_home_degrees() -> None:
     kit = FakeKit()
 
-    zero_vert_servo(kit)
+    zero_tilt_servo(kit)
 
     assert kit.servo[1].pulse_width_range == (1000, 2000)
     assert kit.servo[1].actuation_range == 100
     assert kit.servo[1].angle == 0
 
 
-def test_zero_horz_servo_moves_channel_two_to_zero_degrees() -> None:
+def test_zero_pan_servo_moves_channel_two_to_home_degrees() -> None:
     kit = FakeKit()
 
-    zero_horz_servo(kit)
+    zero_pan_servo(kit)
 
     assert kit.servo[2].pulse_width_range == (1000, 2000)
     assert kit.servo[2].angle == 0
 
 
-def test_zero_all_servos_zeros_positional_servos_and_stops_firing_servo() -> None:
+def test_home_gimbal_homes_positional_servos_and_stops_firing_servo() -> None:
     kit = FakeKit()
     kit.continuous_servo[0].throttle = -0.35
 
-    zero_all_servos(kit)
+    home_gimbal(kit)
 
     assert kit.servo[1].angle == 0
     assert kit.servo[2].angle == 0
     assert kit.continuous_servo[0].throttle is None
 
 
-def test_set_vert_angle_uses_calibrated_travel() -> None:
+def test_set_tilt_angle_uses_calibrated_travel() -> None:
     kit = FakeKit()
 
-    set_vert_angle(45, kit)
+    set_tilt_angle(45, kit)
 
     assert kit.servo[1].actuation_range == 100
     assert kit.servo[1].angle == 45
 
 
-def test_set_vert_angle_rejects_out_of_range_values() -> None:
+def test_set_tilt_angle_rejects_out_of_range_values() -> None:
     kit = FakeKit()
 
     try:
-        set_vert_angle(91, kit)
+        set_tilt_angle(91, kit)
     except ValueError as error:
         assert "between 0 and 90" in str(error)
     else:
