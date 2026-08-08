@@ -3,7 +3,9 @@ from snack_launcher.launcher import (
     SINGLE_SHOT_THROTTLE,
     single_shot,
     set_vert_angle,
-    zero_servo,
+    zero_all_servos,
+    zero_horz_servo,
+    zero_vert_servo,
 )
 
 
@@ -40,14 +42,34 @@ def test_single_shot_uses_calibrated_channel_zero_settings() -> None:
     assert SINGLE_SHOT_THROTTLE == -0.35
 
 
-def test_zero_servo_moves_channel_one_to_zero_degrees() -> None:
+def test_zero_vert_servo_moves_channel_one_to_zero_degrees() -> None:
     kit = FakeKit()
 
-    zero_servo(kit)
+    zero_vert_servo(kit)
 
     assert kit.servo[1].pulse_width_range == (1000, 2000)
     assert kit.servo[1].actuation_range == 100
     assert kit.servo[1].angle == 0
+
+
+def test_zero_horz_servo_moves_channel_two_to_zero_degrees() -> None:
+    kit = FakeKit()
+
+    zero_horz_servo(kit)
+
+    assert kit.servo[2].pulse_width_range == (1000, 2000)
+    assert kit.servo[2].angle == 0
+
+
+def test_zero_all_servos_zeros_positional_servos_and_stops_firing_servo() -> None:
+    kit = FakeKit()
+    kit.continuous_servo[0].throttle = -0.35
+
+    zero_all_servos(kit)
+
+    assert kit.servo[1].angle == 0
+    assert kit.servo[2].angle == 0
+    assert kit.continuous_servo[0].throttle is None
 
 
 def test_set_vert_angle_uses_calibrated_travel() -> None:

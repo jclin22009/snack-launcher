@@ -10,6 +10,7 @@ from typing import Protocol
 PCA9685_ADDRESS = 0x40
 SERVO_CHANNEL = 0
 ELEVATION_SERVO_CHANNEL = 1
+HORIZONTAL_SERVO_CHANNEL = 2
 SINGLE_SHOT_THROTTLE = -0.35
 SINGLE_SHOT_DURATION_S = 3.36
 ZERO_SERVO_ANGLE_DEG = 0
@@ -64,9 +65,31 @@ def single_shot(
         servo.throttle = None
 
 
-def zero_servo(kit: _ServoKit | None = None) -> None:
+def zero_vert_servo(kit: _ServoKit | None = None) -> None:
     """Move the channel-1 elevation servo to its calibrated zero position."""
     set_vert_angle(ZERO_SERVO_ANGLE_DEG, kit)
+
+
+def zero_horz_servo(kit: _ServoKit | None = None) -> None:
+    """Move the channel-2 horizontal servo to its zero position."""
+    if kit is None:
+        kit = create_servo_kit()
+
+    servo = kit.servo[HORIZONTAL_SERVO_CHANNEL]
+    servo.set_pulse_width_range(
+        POSITIONAL_SERVO_MIN_PULSE_US, POSITIONAL_SERVO_MAX_PULSE_US
+    )
+    servo.angle = ZERO_SERVO_ANGLE_DEG
+
+
+def zero_all_servos(kit: _ServoKit | None = None) -> None:
+    """Zero both positional servos and stop the channel-0 firing servo."""
+    if kit is None:
+        kit = create_servo_kit()
+
+    zero_vert_servo(kit)
+    zero_horz_servo(kit)
+    kit.continuous_servo[SERVO_CHANNEL].throttle = None
 
 
 def set_vert_angle(deg: float, kit: _ServoKit | None = None) -> None:
@@ -80,11 +103,6 @@ def set_vert_angle(deg: float, kit: _ServoKit | None = None) -> None:
         kit = create_servo_kit()
 
     _elevation_servo(kit).angle = deg
-
-
-def set_elevation_angle(angle_deg: float, kit: _ServoKit | None = None) -> None:
-    """Compatibility alias for :func:`set_vert_angle`."""
-    set_vert_angle(angle_deg, kit)
 
 
 def _elevation_servo(kit: _ServoKit) -> _PositionalServo:
