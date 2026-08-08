@@ -17,6 +17,10 @@ SERVO_HOME_ANGLE_DEG = 0
 TILT_ANGLE_MIN_DEG = 0
 TILT_ANGLE_MAX_DEG = 90
 TILT_SERVO_ACTUATION_RANGE_DEG = 100
+PAN_ANGLE_MIN_DEG = -50
+PAN_ANGLE_MAX_DEG = 50
+PAN_CENTER_SERVO_ANGLE_DEG = 50
+PAN_SERVO_ACTUATION_RANGE_DEG = 100
 POSITIONAL_SERVO_MIN_PULSE_US = 1000
 POSITIONAL_SERVO_MAX_PULSE_US = 2000
 
@@ -71,15 +75,21 @@ def zero_tilt_servo(kit: _ServoKit | None = None) -> None:
 
 
 def zero_pan_servo(kit: _ServoKit | None = None) -> None:
-    """Move the channel-2 pan servo to its calibrated home position."""
+    """Move the channel-2 pan servo to its centered (straight-ahead) command."""
+    set_pan_angle(0, kit)
+
+
+def set_pan_angle(deg: float, kit: _ServoKit | None = None) -> None:
+    """Set pan angle: negative is left, zero is centered, positive is right."""
+    if not PAN_ANGLE_MIN_DEG <= deg <= PAN_ANGLE_MAX_DEG:
+        raise ValueError(
+            f"angle must be between {PAN_ANGLE_MIN_DEG} and "
+            f"{PAN_ANGLE_MAX_DEG} degrees"
+        )
     if kit is None:
         kit = create_servo_kit()
 
-    servo = kit.servo[PAN_SERVO_CHANNEL]
-    servo.set_pulse_width_range(
-        POSITIONAL_SERVO_MIN_PULSE_US, POSITIONAL_SERVO_MAX_PULSE_US
-    )
-    servo.angle = SERVO_HOME_ANGLE_DEG
+    _pan_servo(kit).angle = PAN_CENTER_SERVO_ANGLE_DEG + deg
 
 
 def home_gimbal(kit: _ServoKit | None = None) -> None:
@@ -112,4 +122,14 @@ def _tilt_servo(kit: _ServoKit) -> _PositionalServo:
         POSITIONAL_SERVO_MIN_PULSE_US, POSITIONAL_SERVO_MAX_PULSE_US
     )
     servo.actuation_range = TILT_SERVO_ACTUATION_RANGE_DEG
+    return servo
+
+
+def _pan_servo(kit: _ServoKit) -> _PositionalServo:
+    """Return channel 2 with the SV-1260MG's calibrated 100° travel."""
+    servo = kit.servo[PAN_SERVO_CHANNEL]
+    servo.set_pulse_width_range(
+        POSITIONAL_SERVO_MIN_PULSE_US, POSITIONAL_SERVO_MAX_PULSE_US
+    )
+    servo.actuation_range = PAN_SERVO_ACTUATION_RANGE_DEG
     return servo

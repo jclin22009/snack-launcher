@@ -3,6 +3,7 @@ from snack_launcher.launcher import (
     SINGLE_SHOT_THROTTLE,
     home_gimbal,
     single_shot,
+    set_pan_angle,
     set_tilt_angle,
     zero_pan_servo,
     zero_tilt_servo,
@@ -52,13 +53,14 @@ def test_zero_tilt_servo_moves_channel_one_to_home_degrees() -> None:
     assert kit.servo[1].angle == 0
 
 
-def test_zero_pan_servo_moves_channel_two_to_home_degrees() -> None:
+def test_zero_pan_servo_moves_channel_two_to_center_degrees() -> None:
     kit = FakeKit()
 
     zero_pan_servo(kit)
 
     assert kit.servo[2].pulse_width_range == (1000, 2000)
-    assert kit.servo[2].angle == 0
+    assert kit.servo[2].actuation_range == 100
+    assert kit.servo[2].angle == 50
 
 
 def test_home_gimbal_homes_positional_servos_and_stops_firing_servo() -> None:
@@ -68,7 +70,7 @@ def test_home_gimbal_homes_positional_servos_and_stops_firing_servo() -> None:
     home_gimbal(kit)
 
     assert kit.servo[1].angle == 0
-    assert kit.servo[2].angle == 0
+    assert kit.servo[2].angle == 50
     assert kit.continuous_servo[0].throttle is None
 
 
@@ -88,5 +90,29 @@ def test_set_tilt_angle_rejects_out_of_range_values() -> None:
         set_tilt_angle(91, kit)
     except ValueError as error:
         assert "between 0 and 90" in str(error)
+    else:
+        raise AssertionError("Expected an out-of-range angle to fail")
+
+
+def test_set_pan_angle_uses_a_signed_centered_coordinate_system() -> None:
+    kit = FakeKit()
+
+    set_pan_angle(-50, kit)
+    assert kit.servo[2].angle == 0
+
+    set_pan_angle(0, kit)
+    assert kit.servo[2].angle == 50
+
+    set_pan_angle(50, kit)
+    assert kit.servo[2].angle == 100
+
+
+def test_set_pan_angle_rejects_out_of_range_values() -> None:
+    kit = FakeKit()
+
+    try:
+        set_pan_angle(51, kit)
+    except ValueError as error:
+        assert "between -50 and 50" in str(error)
     else:
         raise AssertionError("Expected an out-of-range angle to fail")
